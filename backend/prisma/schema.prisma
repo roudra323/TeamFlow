@@ -20,6 +20,8 @@ model User {
   attachments Attachment[] @relation("UploadedAttachments") // Define the relation to Attachment
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  Workspace Workspace[]
 }
 
 // Workspace Model
@@ -27,6 +29,8 @@ model Workspace {
   id          Int      @id @default(autoincrement())
   name        String
   description String?
+  ownerId     Int
+  owner       User     @relation(fields: [ownerId], references: [id])
   users       User[]   @relation("WorkspaceUsers")
   boards      Board[]
   createdAt   DateTime @default(now())

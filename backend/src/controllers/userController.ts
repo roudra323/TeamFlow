@@ -97,7 +97,7 @@ export async function loginUser(req: Request<{}, {}, LoginUserBody>, res: Respon
     }
 
     // Generate a JWT token
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1d' });
 
     res.status(200).json({
         status: "success",
@@ -110,7 +110,7 @@ export async function loginUser(req: Request<{}, {}, LoginUserBody>, res: Respon
                 email: user.email
             },
             token: token,
-            info: "You can use this token to access secure resources. It expires in 1 hour."
+            info: "You can use this token to access secure resources. It expires in 1 Day."
         }
     });
 }
