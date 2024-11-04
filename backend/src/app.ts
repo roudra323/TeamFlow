@@ -8,7 +8,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import boardRoutes from './routes/boardRoutes';
-// import taskRoutes from './routes/taskRoutes';
+import taskRoutes from './routes/taskRoutes';
 // import commentRoutes from './routes/commentRoutes';
 // import attachmentRoutes from './routes/attachmentRoutes';
 import { authenticateToken } from './middlewares/authMiddleware'; // Middleware for authentication
@@ -27,7 +27,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes); // Public routes for user authentication
 app.use('/api/workspaces', authenticateToken, workspaceRoutes); // Protected routes (require authentication)
 app.use('/api/workspaces/boards', authenticateToken, boardRoutes);
-// app.use('/api/tasks', authenticateToken, taskRoutes);
+app.use('/api/workspaces/boards/tasks', authenticateToken, taskRoutes);
 // app.use('/api/comments', authenticateToken, commentRoutes);
 // app.use('/api/attachments', authenticateToken, attachmentRoutes);
 
