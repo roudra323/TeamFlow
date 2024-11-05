@@ -1,4 +1,6 @@
-# Start the PostgreSQL server
+# TeamFlow Backend
+
+## Starting the PostgreSQL Server
 ```bash
 pg_ctl -D "C:\Program Files\PostgreSQL\17\data" -o "-p 5001" start
 ```

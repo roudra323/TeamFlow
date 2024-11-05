@@ -1,5 +1,5 @@
 import express from 'express';
-import { createTask, getTasks, getTask, updateTask, deleteTask, addComment, getComments, uploadAttachment, getAttachments } from '../controllers/taskController';
+import { createTask, getTasks, getTask, updateTask, deleteTask, addComment, getComments, uploadAttachment, getAttachments, deleteAttachment } from '../controllers/taskController';
 import { authenticateToken } from '../middlewares/authMiddleware';
 import upload from '../middlewares/uploadMiddleware'; // Import your Multer configuration
 
@@ -35,6 +35,13 @@ router.post(
     authenticateToken,
     upload.single('file'),
     uploadAttachment
+);
+
+// Delete an attachment from a task
+router.delete(
+    '/:workspaceId/:boardId/:taskId/attachments/:attachmentId',
+    authenticateToken,
+    deleteAttachment
 );
 
 export default router;

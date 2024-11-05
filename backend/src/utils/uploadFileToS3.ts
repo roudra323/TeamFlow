@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import fs from 'fs';
 import path from 'path';
 
@@ -25,4 +25,16 @@ export const uploadFileToS3 = async (filePath: string, fileName: string) => {
     const command = new PutObjectCommand(params);
     const data = await s3.send(command);
     return `https://${params.Bucket}.s3.${process.env.AWS_S3_REGION}.amazonaws.com/${params.Key}`;
+};
+
+
+// Function to delete a file from S3
+export const deleteFileFromS3 = async (fileName: string) => {
+    const params = {
+        Bucket: process.env.AWS_S3_BUCKET!,
+        Key: fileName,
+    };
+
+    const command = new DeleteObjectCommand(params);
+    await s3.send(command);
 };

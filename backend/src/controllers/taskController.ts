@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
-import { uploadFileToS3 } from '../utils/uploadFileToS3';
+import { uploadFileToS3, deleteFileFromS3 } from '../utils/uploadFileToS3';
 import fs from 'fs';
 import path from 'path';
 
@@ -199,9 +199,15 @@ export const getComments = async (req: Request, res: Response): Promise<void> =>
 export const uploadAttachment = async (req: Request, res: Response): Promise<void> => {
     const { taskId } = req.params;
     const file = req.file; // File handled by Multer
+    const userId = req.user?.id;
 
     if (!file) {
         res.status(400).json({ error: 'No file uploaded' });
+        return;
+    }
+
+    if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
         return;
     }
 
@@ -209,7 +215,19 @@ export const uploadAttachment = async (req: Request, res: Response): Promise<voi
         // Upload file to S3
         const fileUrl = await uploadFileToS3(file.path, file.originalname);
 
-        // You can save the file URL in your database if needed
+        // Save the file URL and other details in the database
+        const attachment = await prisma.attachment.create({
+            data: {
+                url: fileUrl,
+                filename: file.originalname,
+                taskId: parseInt(taskId),
+                uploadedById: userId!, // Assuming userId is not undefined
+            },
+        });
+
+
+        // Log before deleting the local file
+        console.log(`Attempting to delete local file: ${file.path}`);
 
         // Delete the local file after uploading to S3
         fs.unlinkSync(file.path);
@@ -237,3 +255,39 @@ export const getAttachments = async (req: Request, res: Response): Promise<void>
         res.status(500).json({ error: 'Failed to fetch attachments' });
     }
 }
+
+// Delete an attachments for a task
+export const deleteAttachment = async (req: Request, res: Response): Promise<void> => {
+    const { attachmentId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+    }
+
+    try {
+        // Fetch the attachment details from the database
+        const attachment = await prisma.attachment.findUnique({
+            where: { id: parseInt(attachmentId) },
+        });
+
+        if (!attachment) {
+            res.status(404).json({ error: 'Attachment not found' });
+            return;
+        }
+
+        // Delete the file from S3
+        await deleteFileFromS3(attachment.filename);
+
+        // Delete the attachment record from the database
+        await prisma.attachment.delete({
+            where: { id: parseInt(attachmentId) },
+        });
+
+        res.status(200).json({ message: 'Attachment deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete attachment' });
+    }
+};
