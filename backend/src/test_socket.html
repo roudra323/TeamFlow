@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Socket.IO Test Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        .status {
+            padding: 10px;
+            margin: 10px;
+            border-radius: 4px;
+        }
+
+        .connected {
+            background: #a8f0a8;
+        }
+
+        .disconnected {
+            background: #f0a8a8;
+        }
+
+        #eventLog {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+        }
+
+        .event-entry {
+            border-bottom: 1px solid #eee;
+            padding: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="connectionStatus" class="status disconnected">Disconnected</div>
+
+    <div>
+        <button onclick="joinWorkspace()">Join Workspace</button>
+        <button onclick="leaveWorkspace()">Leave Workspace</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <div id="eventLog"></div>
+
+    <script>
+        const socket = io('http://localhost:5000');
+        const eventLog = document.getElementById('eventLog');
+        const statusDiv = document.getElementById('connectionStatus');
+
+        function logEvent(event, data) {
+            const entry = document.createElement('div');
+            entry.className = 'event-entry';
+            const timestamp = new Date().toISOString();
+            entry.innerHTML = `
+                <strong>${timestamp}</strong><br>
+                Event: ${event}<br>
+                Data: ${JSON.stringify(data)}
+            `;
+            eventLog.insertBefore(entry, eventLog.firstChild);
+        }
+
+        function clearLog() {
+            eventLog.innerHTML = '';
+        }
+
+        function joinWorkspace() {
+            const workspaceId = 1;
+            const userId = 2;
+            socket.emit('joinWorkspace', workspaceId, userId);
+            logEvent('joinWorkspace', { workspaceId, userId });
+        }
+
+        function leaveWorkspace() {
+            const workspaceId = 1;
+            socket.emit('leaveWorkspace', workspaceId);
+            logEvent('leaveWorkspace', { workspaceId });
+        }
+
+        // Connection events
+        socket.on('connect', () => {
+            statusDiv.className = 'status connected';
+            statusDiv.textContent = `Connected (Socket ID: ${socket.id})`;
+            logEvent('connect', { socketId: socket.id });
+        });
+
+        socket.on('disconnect', () => {
+            statusDiv.className = 'status disconnected';
+            statusDiv.textContent = 'Disconnected';
+            logEvent('disconnect', {});
+        });
+
+        // Workspace events
+        socket.on('userOnline', (data) => {
+            logEvent('userOnline', data);
+        });
+
+        socket.on('userOffline', (data) => {
+            logEvent('userOffline', data);
+        });
+
+        // Error handling
+        socket.on('error', (error) => {
+            logEvent('error', error);
+        });
+    </script>
+</body>
+
+</html>

@@ -2,9 +2,17 @@ import { Request, Response } from 'express';
 import prisma from '../utils/prisma';
 import { uploadFileToS3, deleteFileFromS3 } from '../utils/uploadFileToS3';
 import fs from 'fs';
-import path from 'path';
+import { SocketService } from '../services/socket.service'; // Import SocketService
+import { logger } from '../utils/logger'; // Import logger
+import { createResponse } from '../utils/response.helper'; // Import response helper
 
-// Helper function to check if a board belongs to a workspace
+// Helper function to initialize SocketService
+const initializeSocketService = (req: Request): SocketService => {
+    const io = req.app.get('io');
+    return new SocketService(io);
+};
+
+// Helper function to validate board
 async function validateBoard(workspaceId: number, boardId: number) {
     return await prisma.board.findFirst({
         where: {
@@ -20,14 +28,12 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
     const { title, description, status, priority, dueDate, assigneeId } = req.body;
 
     try {
-        // Validate that the board exists within the specified workspace
         const board = await validateBoard(Number(workspaceId), Number(boardId));
         if (!board) {
-            res.status(404).json({ error: 'Board not found in the specified workspace' });
+            res.status(404).json(createResponse(false, null, 'Board not found in the specified workspace'));
             return;
         }
 
-        // Create the task
         const task = await prisma.task.create({
             data: {
                 title,
@@ -40,10 +46,14 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
             },
         });
 
-        res.status(201).json({ message: 'Task created successfully', task });
+        const socketService = initializeSocketService(req);
+        socketService.emitToWorkspace(Number(workspaceId), 'taskCreated', task);
+
+        logger.info('Task created successfully', task);
+        res.status(201).json(createResponse(true, { message: 'Task created successfully', task }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to create task' });
+        logger.error('Failed to create task', error);
+        res.status(500).json(createResponse(false, null, 'Failed to create task'));
     }
 };
 
@@ -52,21 +62,17 @@ export const getTasks = async (req: Request, res: Response): Promise<void> => {
     const { workspaceId, boardId } = req.params;
 
     try {
-        // Validate that the board exists within the specified workspace
         const board = await validateBoard(Number(workspaceId), Number(boardId));
         if (!board) {
-            res.status(404).json({ error: 'Board not found in the specified workspace' });
+            res.status(404).json(createResponse(false, null, 'Board not found in the specified workspace'));
             return;
         }
 
-        const tasks = await prisma.task.findMany({
-            where: { boardId: board.id },
-        });
-
-        res.status(200).json({ tasks });
+        const tasks = await prisma.task.findMany({ where: { boardId: board.id } });
+        res.status(200).json(createResponse(true, { tasks }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch tasks' });
+        logger.error('Failed to fetch tasks', error);
+        res.status(500).json(createResponse(false, null, 'Failed to fetch tasks'));
     }
 };
 
@@ -75,26 +81,22 @@ export const getTask = async (req: Request, res: Response): Promise<void> => {
     const { workspaceId, boardId, taskId } = req.params;
 
     try {
-        // Validate that the board exists within the specified workspace
         const board = await validateBoard(Number(workspaceId), Number(boardId));
         if (!board) {
-            res.status(404).json({ error: 'Board not found in the specified workspace' });
+            res.status(404).json(createResponse(false, null, 'Board not found in the specified workspace'));
             return;
         }
 
-        const task = await prisma.task.findUnique({
-            where: { id: parseInt(taskId) },
-        });
-
+        const task = await prisma.task.findUnique({ where: { id: parseInt(taskId) } });
         if (!task) {
-            res.status(404).json({ error: 'Task not found' });
+            res.status(404).json(createResponse(false, null, 'Task not found'));
             return;
         }
 
-        res.status(200).json({ task });
+        res.status(200).json(createResponse(true, { task }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch task' });
+        logger.error('Failed to fetch task', error);
+        res.status(500).json(createResponse(false, null, 'Failed to fetch task'));
     }
 };
 
@@ -104,10 +106,9 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
     const { title, description, status, priority, dueDate, assigneeId } = req.body;
 
     try {
-        // Validate that the board exists within the specified workspace
         const board = await validateBoard(Number(workspaceId), Number(boardId));
         if (!board) {
-            res.status(404).json({ error: 'Board not found in the specified workspace' });
+            res.status(404).json(createResponse(false, null, 'Board not found in the specified workspace'));
             return;
         }
 
@@ -123,10 +124,14 @@ export const updateTask = async (req: Request, res: Response): Promise<void> => 
             },
         });
 
-        res.status(200).json({ message: 'Task updated successfully', task });
+        const socketService = initializeSocketService(req);
+        socketService.emitToWorkspace(Number(workspaceId), 'taskUpdated', task);
+
+        logger.info('Task updated successfully', task);
+        res.status(200).json(createResponse(true, { message: 'Task updated successfully', task }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to update task' });
+        logger.error('Failed to update task', error);
+        res.status(500).json(createResponse(false, null, 'Failed to update task'));
     }
 };
 
@@ -135,33 +140,28 @@ export const deleteTask = async (req: Request, res: Response): Promise<void> => 
     const { workspaceId, boardId, taskId } = req.params;
 
     try {
-        // Validate that the board exists within the specified workspace
         const board = await validateBoard(Number(workspaceId), Number(boardId));
         if (!board) {
-            res.status(404).json({ error: 'Board not found in the specified workspace' });
+            res.status(404).json(createResponse(false, null, 'Board not found in the specified workspace'));
             return;
         }
 
-        await prisma.task.delete({
-            where: { id: parseInt(taskId) },
-        });
-
-        res.status(200).json({ message: 'Task deleted successfully' });
+        await prisma.task.delete({ where: { id: parseInt(taskId) } });
+        res.status(200).json(createResponse(true, { message: 'Task deleted successfully' }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to delete task' });
+        logger.error('Failed to delete task', error);
+        res.status(500).json(createResponse(false, null, 'Failed to delete task'));
     }
 };
 
 // Add a comment to a task
 export const addComment = async (req: Request, res: Response): Promise<void> => {
-    const { taskId } = req.params;
+    const { workspaceId, taskId } = req.params;
     const { content } = req.body;
-    const userId = req.user?.id; // Assuming `req.user` has the authenticated user's ID
+    const userId = req.user?.id;
 
-    // Check if userId is undefined
     if (!userId) {
-        res.status(400).json({ error: 'User ID is required to add a comment' });
+        res.status(400).json(createResponse(false, null, 'User ID is required to add a comment'));
         return;
     }
 
@@ -170,13 +170,18 @@ export const addComment = async (req: Request, res: Response): Promise<void> => 
             data: {
                 content,
                 taskId: parseInt(taskId),
-                authorId: userId, // userId is now guaranteed to be a number
+                authorId: userId,
             },
         });
-        res.status(201).json({ message: 'Comment added successfully', comment });
+
+        const socketService = initializeSocketService(req);
+        socketService.emitToWorkspace(Number(workspaceId), 'commentAdded', comment);
+
+        logger.info('Comment added successfully', comment);
+        res.status(201).json(createResponse(true, { message: 'Comment added successfully', comment }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to add comment' });
+        logger.error('Failed to add comment', error);
+        res.status(500).json(createResponse(false, null, 'Failed to add comment'));
     }
 };
 
@@ -187,14 +192,45 @@ export const getComments = async (req: Request, res: Response): Promise<void> =>
     try {
         const comments = await prisma.comment.findMany({
             where: { taskId: parseInt(taskId) },
-            include: { author: true }, // Include author details
+            include: { author: true },
         });
-        res.status(200).json({ comments });
+        res.status(200).json(createResponse(true, { comments }));
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch comments' });
+        logger.error('Failed to fetch comments', error);
+        res.status(500).json(createResponse(false, null, 'Failed to fetch comments'));
     }
 };
+
+// Delete a comment from a task
+export const deleteComment = async (req: Request, res: Response): Promise<void> => {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+        res.status(401).json(createResponse(false, null, 'User not authenticated'));
+        return;
+    }
+
+    try {
+        const comment = await prisma.comment.findUnique({ where: { id: parseInt(commentId) } });
+        if (!comment) {
+            res.status(404).json(createResponse(false, null, 'Comment not found'));
+            return;
+        }
+
+        if (comment.authorId !== userId) {
+            res.status(403).json(createResponse(false, null, 'User not authorized to delete this comment'));
+            return;
+        }
+
+        await prisma.comment.delete({ where: { id: parseInt(commentId) } });
+        res.status(200).json(createResponse(true, { message: 'Comment deleted successfully' }));
+    } catch (error) {
+        logger.error('Failed to delete comment', error);
+        res.status(500).json(createResponse(false, null, 'Failed to delete comment'));
+    }
+};
+
 
 export const uploadAttachment = async (req: Request, res: Response): Promise<void> => {
     const { taskId } = req.params;
@@ -202,12 +238,12 @@ export const uploadAttachment = async (req: Request, res: Response): Promise<voi
     const userId = req.user?.id;
 
     if (!file) {
-        res.status(400).json({ error: 'No file uploaded' });
+        res.status(400).json(createResponse(false, null, 'No file uploaded'));
         return;
     }
 
     if (!userId) {
-        res.status(401).json({ error: 'User not authenticated' });
+        res.status(401).json(createResponse(false, null, 'User not authenticated'));
         return;
     }
 
@@ -232,10 +268,10 @@ export const uploadAttachment = async (req: Request, res: Response): Promise<voi
         // Delete the local file after uploading to S3
         fs.unlinkSync(file.path);
 
-        res.status(201).json({ message: 'File uploaded successfully', fileUrl });
+        res.status(201).json(createResponse(true, { message: 'File uploaded successfully', fileUrl }));
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to upload file' });
+        res.status(500).json(createResponse(false, null, 'Failed to upload file'));
     }
 };
 
@@ -249,10 +285,10 @@ export const getAttachments = async (req: Request, res: Response): Promise<void>
             where: { taskId: parseInt(taskId) },
         });
 
-        res.status(200).json({ attachments });
+        res.status(200).json(createResponse(true, { attachments }));
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to fetch attachments' });
+        res.status(500).json(createResponse(false, null, 'Failed to fetch attachments'));
     }
 }
 
@@ -262,7 +298,7 @@ export const deleteAttachment = async (req: Request, res: Response): Promise<voi
     const userId = req.user?.id;
 
     if (!userId) {
-        res.status(401).json({ error: 'User not authenticated' });
+        res.status(401).json(createResponse(false, null, 'User not authenticated'));
         return;
     }
 
@@ -273,7 +309,7 @@ export const deleteAttachment = async (req: Request, res: Response): Promise<voi
         });
 
         if (!attachment) {
-            res.status(404).json({ error: 'Attachment not found' });
+            res.status(404).json(createResponse(false, null, 'Attachment not found'));
             return;
         }
 
@@ -285,9 +321,9 @@ export const deleteAttachment = async (req: Request, res: Response): Promise<voi
             where: { id: parseInt(attachmentId) },
         });
 
-        res.status(200).json({ message: 'Attachment deleted successfully' });
+        res.status(200).json(createResponse(true, { message: 'Attachment deleted successfully' }));
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: 'Failed to delete attachment' });
+        res.status(500).json(createResponse(false, null, 'Failed to delete attachment'));
     }
 };
