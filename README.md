@@ -101,8 +101,8 @@ TeamFlow is a collaborative task management tool designed to enhance team produc
 ## Getting Started
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/team-work-hub.git
-   cd team-work-hub
+   https://github.com/roudra323/TeamFlow.git
+   cd TeamFlow
    ```
 
 2. **Install dependencies**:
@@ -129,6 +129,3 @@ TeamFlow is a collaborative task management tool designed to enhance team produc
 ## License
 This project is licensed under the MIT License. See the `LICENSE` file for more details.
 
----
-
-Feel free to modify this `README.md` to include any specific instructions, custom branding, or links relevant to your project.
